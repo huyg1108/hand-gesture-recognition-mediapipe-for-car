@@ -52,8 +52,13 @@ def main():
 
     use_brect = True
 
+    print("Camera opening")
     # Camera preparation ###############################################################
-    cap = cv.VideoCapture(cap_device)
+    cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
+    if not cap.isOpened():
+        print(f"[ERROR] Cannot open camera with device index {cap_device}")
+        return
+    print("Camera opened successfully")
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
 
