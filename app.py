@@ -4,12 +4,14 @@ import csv
 import copy
 import argparse
 import itertools
+import time
 from collections import Counter
 from collections import deque
 
 import cv2 as cv
 import numpy as np
 import mediapipe as mp
+import paho.mqtt.client as mqtt
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier
@@ -32,10 +34,76 @@ def get_args():
                         help='min_tracking_confidence',
                         type=int,
                         default=0.5)
+    
+    # MQTT arguments
+    parser.add_argument("--mqtt_broker", help='MQTT broker address', type=str, default="broker.hivemq.com")
+    parser.add_argument("--mqtt_port", help='MQTT port', type=int, default=1883)
+    parser.add_argument("--mqtt_topic", help='MQTT topic', type=str, default="raspi/test")
+    parser.add_argument("--enable_mqtt", help='Enable MQTT publishing', action='store_true')
 
     args = parser.parse_args()
 
     return args
+
+
+# MQTT Setup Functions
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to MQTT broker successfully")
+    else:
+        print(f"Failed to connect to MQTT broker, return code {rc}")
+
+def setup_mqtt(broker, port):
+    try:
+        # Fix for paho-mqtt version 2.0+ compatibility
+        try:
+            # Try new API first (paho-mqtt >= 2.0)
+            client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1, client_id="hand_gesture_controller")
+        except:
+            # Fallback to old API (paho-mqtt < 2.0)
+            client = mqtt.Client("hand_gesture_controller")
+        
+        client.on_connect = on_connect
+        client.connect(broker, port, 60)
+        client.loop_start()
+        return client
+    except Exception as e:
+        print(f"MQTT setup failed: {e}")
+        return None
+
+def check_gesture_stability(gesture_buffer, gesture_id, labels, threshold):
+    """Check if a gesture is stable enough to publish"""
+    if 0 <= gesture_id < len(labels):
+        command = labels[gesture_id]
+        gesture_buffer.append(command)
+        
+        # Count occurrences of each gesture in buffer
+        gesture_counts = Counter(gesture_buffer)
+        most_common = gesture_counts.most_common(1)
+        
+        if most_common and most_common[0][1] >= threshold:
+            return most_common[0][0]  # Return the most stable gesture
+    
+    return None
+
+def publish_gesture_command(mqtt_client, topic, gesture_id, labels, last_published, last_time, publish_interval):
+    if mqtt_client is None:
+        return last_published, last_time
+    
+    if 0 <= gesture_id < len(labels):
+        command = labels[gesture_id]
+        current_time = time.time()
+        
+        # Only publish if gesture actually changed
+        if command != last_published:
+            try:
+                mqtt_client.publish(topic, command)
+                print(f"Published: {command} to {topic}")
+                return command, current_time
+            except Exception as e:
+                print(f"Failed to publish MQTT message: {e}")
+    
+    return last_published, last_time
 
 
 def main():
@@ -51,6 +119,16 @@ def main():
     min_tracking_confidence = args.min_tracking_confidence
 
     use_brect = True
+
+    # MQTT Setup (if enabled) #########################################################
+    mqtt_client = None
+    if args.enable_mqtt:
+        print(f"Setting up MQTT connection to {args.mqtt_broker}:{args.mqtt_port}")
+        mqtt_client = setup_mqtt(args.mqtt_broker, args.mqtt_port)
+        if mqtt_client:
+            print(f"MQTT will publish to topic: {args.mqtt_topic}")
+        else:
+            print("MQTT setup failed, continuing without MQTT")
 
     print("Camera opening")
     # Camera preparation ###############################################################
@@ -99,6 +177,18 @@ def main():
 
     # Finger gesture history ################################################
     finger_gesture_history = deque(maxlen=history_length)
+
+    # MQTT throttling variables ############################################
+    last_published_gesture = {"hand": None, "finger": None}
+    last_publish_time = {"hand": 0, "finger": 0}
+    
+    # Gesture stability tracking
+    gesture_stability_buffer = {
+        "hand": deque(maxlen=10),
+        "finger": deque(maxlen=10)
+    }  # Track last 10 gestures for each type
+    stable_gesture_threshold = 6  # Gesture must appear 6+ times out of 10 to be considered stable
+    last_stable_gesture = {"hand": None, "finger": None}
 
     #  ########################################################################
     mode = 0
@@ -162,6 +252,33 @@ def main():
                 finger_gesture_history.append(finger_gesture_id)
                 most_common_fg_id = Counter(
                     finger_gesture_history).most_common()
+
+                # MQTT Publishing - Send gesture command only when stable
+                if mqtt_client is not None:
+                    # Check hand gesture stability
+                    stable_hand_gesture = check_gesture_stability(
+                        gesture_stability_buffer["hand"], hand_sign_id, 
+                        keypoint_classifier_labels, stable_gesture_threshold
+                    )
+                    
+                    # Publish only if stable gesture is different from last stable
+                    if stable_hand_gesture and stable_hand_gesture != last_stable_gesture["hand"]:
+                        mqtt_client.publish(args.mqtt_topic, stable_hand_gesture)
+                        print(f"Stable Published: {stable_hand_gesture} to {args.mqtt_topic}")
+                        last_stable_gesture["hand"] = stable_hand_gesture
+                    
+                    # Also check finger gesture stability if detected
+                    if most_common_fg_id:
+                        stable_finger_gesture = check_gesture_stability(
+                            gesture_stability_buffer["finger"], most_common_fg_id[0][0], 
+                            point_history_classifier_labels, stable_gesture_threshold
+                        )
+                        
+                        if stable_finger_gesture and stable_finger_gesture != last_stable_gesture["finger"]:
+                            finger_topic = args.mqtt_topic + "/finger"
+                            mqtt_client.publish(finger_topic, stable_finger_gesture)
+                            print(f"Stable Published: {stable_finger_gesture} to {finger_topic}")
+                            last_stable_gesture["finger"] = stable_finger_gesture
 
                 # Drawing part
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
