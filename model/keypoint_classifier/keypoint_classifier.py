@@ -31,6 +31,9 @@ class KeyPointClassifier(object):
 
         result = self.interpreter.get_tensor(output_details_tensor_index)
 
-        result_index = np.argmax(np.squeeze(result))
+        squeezed_result = np.squeeze(result)
+        result_index = np.argmax(squeezed_result)
+        
+        confidence_score = squeezed_result[result_index]
 
-        return result_index
+        return result_index, confidence_score

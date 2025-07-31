@@ -15,7 +15,6 @@ import paho.mqtt.client as mqtt
 
 from utils import CvFpsCalc
 from model import KeyPointClassifier
-from model import PointHistoryClassifier
 
 
 def get_args():
@@ -151,21 +150,12 @@ def main():
 
     keypoint_classifier = KeyPointClassifier()
 
-    point_history_classifier = PointHistoryClassifier()
-
     # Read labels ###########################################################
     with open('model/keypoint_classifier/keypoint_classifier_label.csv',
               encoding='utf-8-sig') as f:
         keypoint_classifier_labels = csv.reader(f)
         keypoint_classifier_labels = [
             row[0] for row in keypoint_classifier_labels
-        ]
-    with open(
-            'model/point_history_classifier/point_history_classifier_label.csv',
-            encoding='utf-8-sig') as f:
-        point_history_classifier_labels = csv.reader(f)
-        point_history_classifier_labels = [
-            row[0] for row in point_history_classifier_labels
         ]
 
     # FPS Measurement ########################################################
@@ -175,20 +165,19 @@ def main():
     history_length = 16
     point_history = deque(maxlen=history_length)
 
-    # Finger gesture history ################################################
-    finger_gesture_history = deque(maxlen=history_length)
-
     # MQTT throttling variables ############################################
-    last_published_gesture = {"hand": None, "finger": None}
-    last_publish_time = {"hand": 0, "finger": 0}
+    last_published_gesture = {"hand": None}
+    last_publish_time = {"hand": 0}
+    
+    # Gesture confidence threshold
+    CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence for gesture recognition
     
     # Gesture stability tracking
     gesture_stability_buffer = {
-        "hand": deque(maxlen=10),
-        "finger": deque(maxlen=10)
-    }  # Track last 10 gestures for each type
+        "hand": deque(maxlen=10)
+    }  # Track last 10 gestures for hand only
     stable_gesture_threshold = 6  # Gesture must appear 6+ times out of 10 to be considered stable
-    last_stable_gesture = {"hand": None, "finger": None}
+    last_stable_gesture = {"hand": None}
 
     #  ########################################################################
     mode = 0
@@ -234,51 +223,42 @@ def main():
                 logging_csv(number, mode, pre_processed_landmark_list,
                             pre_processed_point_history_list)
 
-                # Hand sign classification
-                hand_sign_id = keypoint_classifier(pre_processed_landmark_list)
-                if hand_sign_id == 2:  # Point gesture
+                # Hand sign classification with confidence threshold
+                hand_sign_id, confidence = keypoint_classifier(pre_processed_landmark_list)
+                
+                # Check confidence threshold for unknown gesture detection
+                if confidence >= CONFIDENCE_THRESHOLD:
+                    current_hand_sign_id = hand_sign_id
+                else:
+                    current_hand_sign_id = 5  # Unknown gesture (index 5 in labels)
+                
+                if current_hand_sign_id == 2:  # Point gesture
                     point_history.append(landmark_list[8])
                 else:
                     point_history.append([0, 0])
 
-                # Finger gesture classification
-                finger_gesture_id = 0
-                point_history_len = len(pre_processed_point_history_list)
-                if point_history_len == (history_length * 2):
-                    finger_gesture_id = point_history_classifier(
-                        pre_processed_point_history_list)
-
-                # Calculates the gesture IDs in the latest detection
-                finger_gesture_history.append(finger_gesture_id)
-                most_common_fg_id = Counter(
-                    finger_gesture_history).most_common()
-
                 # MQTT Publishing - Send gesture command only when stable
                 if mqtt_client is not None:
-                    # Check hand gesture stability
-                    stable_hand_gesture = check_gesture_stability(
-                        gesture_stability_buffer["hand"], hand_sign_id, 
-                        keypoint_classifier_labels, stable_gesture_threshold
-                    )
-                    
-                    # Publish only if stable gesture is different from last stable
-                    if stable_hand_gesture and stable_hand_gesture != last_stable_gesture["hand"]:
-                        mqtt_client.publish(args.mqtt_topic, stable_hand_gesture)
-                        print(f"Stable Published: {stable_hand_gesture} to {args.mqtt_topic}")
-                        last_stable_gesture["hand"] = stable_hand_gesture
-                    
-                    # Also check finger gesture stability if detected
-                    if most_common_fg_id:
-                        stable_finger_gesture = check_gesture_stability(
-                            gesture_stability_buffer["finger"], most_common_fg_id[0][0], 
-                            point_history_classifier_labels, stable_gesture_threshold
+                    # For unknown gestures, send "Stop" command to keep car stopped
+                    if current_hand_sign_id == 5:  # Unknown gesture
+                        # Send stop command for unknown gestures
+                        stop_command = "Stop"
+                        if last_stable_gesture["hand"] != stop_command:
+                            mqtt_client.publish(args.mqtt_topic, stop_command)
+                            print(f"Unknown Gesture - Published: {stop_command} to {args.mqtt_topic}")
+                            last_stable_gesture["hand"] = stop_command
+                    else:
+                        # Check hand gesture stability for known gestures
+                        stable_hand_gesture = check_gesture_stability(
+                            gesture_stability_buffer["hand"], current_hand_sign_id, 
+                            keypoint_classifier_labels, stable_gesture_threshold
                         )
                         
-                        if stable_finger_gesture and stable_finger_gesture != last_stable_gesture["finger"]:
-                            finger_topic = args.mqtt_topic + "/finger"
-                            mqtt_client.publish(finger_topic, stable_finger_gesture)
-                            print(f"Stable Published: {stable_finger_gesture} to {finger_topic}")
-                            last_stable_gesture["finger"] = stable_finger_gesture
+                        # Publish only if stable gesture is different from last stable
+                        if stable_hand_gesture and stable_hand_gesture != last_stable_gesture["hand"]:
+                            mqtt_client.publish(args.mqtt_topic, stable_hand_gesture)
+                            print(f"Stable Published: {stable_hand_gesture} to {args.mqtt_topic}")
+                            last_stable_gesture["hand"] = stable_hand_gesture
 
                 # Drawing part
                 debug_image = draw_bounding_rect(use_brect, debug_image, brect)
@@ -287,11 +267,21 @@ def main():
                     debug_image,
                     brect,
                     handedness,
-                    keypoint_classifier_labels[hand_sign_id],
-                    point_history_classifier_labels[most_common_fg_id[0][0]],
+                    keypoint_classifier_labels[current_hand_sign_id],
+                    f"Conf: {confidence:.2f}",
                 )
         else:
+            # No hand detected - send stop command
             point_history.append([0, 0])
+            
+            # Send stop command when no hand is detected
+            if mqtt_client is not None:
+                stop_command = "stop"
+                # Only send stop if last published command was not already stop
+                if last_stable_gesture["hand"] != stop_command:
+                    mqtt_client.publish(args.mqtt_topic, stop_command)
+                    print(f"No hand detected - Published: {stop_command} to {args.mqtt_topic}")
+                    last_stable_gesture["hand"] = stop_command
 
         debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
@@ -614,22 +604,20 @@ def draw_bounding_rect(use_brect, image, brect):
 
 
 def draw_info_text(image, brect, handedness, hand_sign_text,
-                   finger_gesture_text):
-    cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 22),
+                   confidence_text):
+    cv.rectangle(image, (brect[0], brect[1]), (brect[2], brect[1] - 44),
                  (0, 0, 0), -1)
 
     info_text = handedness.classification[0].label[0:]
     if hand_sign_text != "":
         info_text = info_text + ':' + hand_sign_text
-    cv.putText(image, info_text, (brect[0] + 5, brect[1] - 4),
+    cv.putText(image, info_text, (brect[0] + 5, brect[1] - 26),
                cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv.LINE_AA)
 
-    if finger_gesture_text != "":
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 4, cv.LINE_AA)
-        cv.putText(image, "Finger Gesture:" + finger_gesture_text, (10, 60),
-                   cv.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2,
-                   cv.LINE_AA)
+    # Display confidence score
+    if confidence_text != "":
+        cv.putText(image, confidence_text, (brect[0] + 5, brect[1] - 4),
+                   cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1, cv.LINE_AA)
 
     return image
 
