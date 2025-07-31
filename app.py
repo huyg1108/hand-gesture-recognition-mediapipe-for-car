@@ -7,6 +7,7 @@ import itertools
 import time
 from collections import Counter
 from collections import deque
+from datetime import datetime
 
 import cv2 as cv
 import numpy as np
@@ -21,8 +22,8 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--width", help='cap width', type=int, default=960)
-    parser.add_argument("--height", help='cap height', type=int, default=540)
+    parser.add_argument("--width", help='cap width', type=int, default=480)
+    parser.add_argument("--height", help='cap height', type=int, default=320)
 
     parser.add_argument('--use_static_image_mode', action='store_true')
     parser.add_argument("--min_detection_confidence",
@@ -104,6 +105,16 @@ def publish_gesture_command(mqtt_client, topic, gesture_id, labels, last_publish
     
     return last_published, last_time
 
+def log_camera_issue(mqtt_client, topic, message):
+    """Log camera issue and push to MQTT if enabled."""
+    print(message)
+    if mqtt_client is not None:
+        try:
+            mqtt_client.publish(topic, message)
+            print(f"Published log: {message} to {topic}")
+        except Exception as e:
+            print(f"Failed to publish MQTT log: {e}")
+
 
 def main():
     # Argument parsing #################################################################
@@ -176,25 +187,37 @@ def main():
     gesture_stability_buffer = {
         "hand": deque(maxlen=10)
     }  # Track last 10 gestures for hand only
-    stable_gesture_threshold = 6  # Gesture must appear 6+ times out of 10 to be considered stable
+    stable_gesture_threshold = 8  # Gesture must appear 6+ times out of 10 to be considered stable
     last_stable_gesture = {"hand": None}
+    
+    # Camera disconnection tracking
+    camera_disconnected = False  # Flag to track if camera disconnection has been logged
 
     #  ########################################################################
     mode = 0
 
     while True:
+        if not cap.grab():
+            print("Không thể grab frame!")
+            break
         fps = cvFpsCalc.get()
 
         # Process Key (ESC: end) #################################################
-        key = cv.waitKey(10)
+        key = cv.waitKey(1)
         if key == 27:  # ESC
             break
         number, mode = select_mode(key, mode)
 
         # Camera capture #####################################################
-        ret, image = cap.read()
-        if not ret:
+        ret, image = cap.retrieve()
+        if not ret or not cap.isOpened():
+            if not camera_disconnected:
+                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                disconnect_message = f"[{current_time}] Webcam disconnected!"
+                log_camera_issue(mqtt_client, args.mqtt_topic, disconnect_message)
+                camera_disconnected = True
             break
+
         image = cv.flip(image, 1)  # Mirror display
         debug_image = copy.deepcopy(image)
 
@@ -232,11 +255,6 @@ def main():
                 else:
                     current_hand_sign_id = 5  # Unknown gesture (index 5 in labels)
                 
-                if current_hand_sign_id == 2:  # Point gesture
-                    point_history.append(landmark_list[8])
-                else:
-                    point_history.append([0, 0])
-
                 # MQTT Publishing - Send gesture command only when stable
                 if mqtt_client is not None:
                     # For unknown gestures, send "Stop" command to keep car stopped
