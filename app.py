@@ -8,6 +8,9 @@ import time
 from collections import Counter
 from collections import deque
 from datetime import datetime
+import socket
+import threading
+import os
 
 import cv2 as cv
 import numpy as np
@@ -33,7 +36,7 @@ def get_args():
     parser.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
                         type=int,
-                        default=0.5)
+                        default=0.2)
     
     # MQTT arguments
     parser.add_argument("--mqtt_broker", help='MQTT broker address', type=str, default="broker.hivemq.com")
@@ -116,6 +119,83 @@ def log_camera_issue(mqtt_client, topic, message):
         except Exception as e:
             print(f"Failed to publish MQTT log: {e}")
 
+wifi_disconnected = False
+
+# Function to check internet connection
+def check_internet_connection(host="8.8.8.8", port=53, timeout=3):
+    try:
+        socket.setdefaulttimeout(timeout)
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect((host, port))
+        return True
+    except socket.error as ex:
+        return False
+
+
+# Function to log WiFi disconnection offline
+def log_wifi_disconnection_offline(message):
+    log_dir = "logs"
+    log_file = os.path.join(log_dir, "wifi_disconnection.log")
+
+    # Ensure the log directory exists
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Append the log message to the file
+    with open(log_file, "a") as f:
+        f.write(message + "\n")
+
+
+# Function to check if MQTT client is connected
+def is_mqtt_connected(mqtt_client):
+    return mqtt_client.is_connected() if mqtt_client else False
+
+# Function to push offline logs to MQTT
+# Push logs stored in the offline log file to the MQTT broker
+def push_offline_logs(mqtt_client, log_topic):
+    log_dir = "logs"
+    log_file = os.path.join(log_dir, "wifi_disconnection.log")
+
+    if os.path.exists(log_file):
+        try:
+            with open(log_file, "r") as f:
+                logs = f.readlines()
+
+            remaining_logs = []
+            for log in logs:
+                if is_mqtt_connected(mqtt_client):
+                    try:
+                        mqtt_client.publish(log_topic + "/wifi", log.strip())
+                        print(f"Pushed offline log: {log.strip()} to {log_topic}/wifi")
+                    except Exception as e:
+                        print(f"Failed to push log: {log.strip()} - {e}")
+                        remaining_logs.append(log)  # Keep failed logs
+                else:
+                    print("MQTT client not connected. Retaining log.")
+                    remaining_logs.append(log)
+
+            # Write back remaining logs to the file
+            with open(log_file, "w") as f:
+                f.writelines(remaining_logs)
+        except Exception as e:
+            print(f"Failed to push offline logs: {e}")
+
+# Update periodic_wifi_check to push offline logs upon reconnection
+def periodic_wifi_check(interval, mqtt_client, log_topic):
+    global wifi_disconnected
+    while True:
+        if not check_internet_connection():
+            if not wifi_disconnected:
+                wifi_disconnected = True
+                final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                final_message = f"[{final_time}] WiFi disconnected!"
+                log_camera_issue(mqtt_client, log_topic + "/wifi", final_message)
+                log_wifi_disconnection_offline(final_message)  # Log offline
+        else:
+            if wifi_disconnected:
+                wifi_disconnected = False
+                print("WiFi reconnected! Pushing offline logs...")
+                push_offline_logs(mqtt_client, log_topic + "/wifi")  # Push offline logs
+        time.sleep(interval)
+
 
 def main():
     # Argument parsing #################################################################
@@ -131,7 +211,6 @@ def main():
 
     use_brect = True
 
-    # MQTT Setup (if enabled) #########################################################
     mqtt_client = None
     if args.enable_mqtt:
         print(f"Setting up MQTT connection to {args.mqtt_broker}:{args.mqtt_port}")
@@ -139,11 +218,24 @@ def main():
         if mqtt_client:
             print(f"MQTT will publish to topic: {args.mqtt_topic}")
             print(f"Log will publish to topic: {args.mqtt_log_topic}")
+
+            time.sleep(2)
+            log_dir = "logs"
+            log_file = os.path.join(log_dir, "wifi_disconnection.log")
+            if os.path.exists(log_file):
+                with open(log_file, "r") as f:
+                    remaining_logs = f.readlines()
+                if remaining_logs:
+                    print("Offline logs detected at startup. Pushing...")
+                    if is_mqtt_connected(mqtt_client):
+                        push_offline_logs(mqtt_client, args.mqtt_log_topic)
+                    else:
+                        print("MQTT client not connected. Retaining log.")
         else:
             print("MQTT setup failed, continuing without MQTT")
 
     print("Camera opening")
-    # Camera preparation ###############################################################
+
     cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
     if not cap.isOpened():
         print(f"[ERROR] Cannot open camera with device index {cap_device}")
@@ -199,8 +291,16 @@ def main():
     unknown_gesture_start_time = None  # Track when unknown gesture started
     unknown_gesture_threshold = 2.0  # 2 seconds threshold for unknown gesture
 
+    # WiFi disconnection tracking
+    wifi_disconnected = False
+
     #  ########################################################################
     mode = 0
+
+    # Start a thread for periodic WiFi check
+    if args.enable_mqtt:
+        wifi_check_thread = threading.Thread(target=periodic_wifi_check, args=(5, mqtt_client, args.mqtt_log_topic), daemon=True)
+        wifi_check_thread.start()
 
     while True:
         if not cap.grab():
@@ -219,11 +319,8 @@ def main():
         if not ret or not cap.isOpened():
             if not camera_disconnected:
                 camera_disconnected = True
-                
                 print("Webcam disconnected! Waiting 10 seconds for webcam reconnection...")
                 time.sleep(10)
-                
-                # Try to reconnect
                 cap.release()
                 cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
                 if cap.isOpened():
@@ -235,7 +332,7 @@ def main():
                 else:
                     final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     final_message = f"[{final_time}] Webcam disconnected! Failed to reconnect webcam."
-                    log_camera_issue(mqtt_client, args.mqtt_log_topic, final_message)
+                    log_camera_issue(mqtt_client, args.mqtt_log_topic + "/webcam", final_message)
             break
 
         image = cv.flip(image, 1)  # Mirror display
@@ -554,87 +651,87 @@ def draw_landmarks(image, landmark_point):
 
     # Key Points
     for index, landmark in enumerate(landmark_point):
-        if index == 0:  # 手首1
+        if index == 0:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 1:  # 手首2
+        if index == 1:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 2:  # 親指：付け根
+        if index == 2:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 3:  # 親指：第1関節
+        if index == 3:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 4:  # 親指：指先
+        if index == 4:
             cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 5:  # 人差指：付け根
+        if index == 5:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 6:  # 人差指：第2関節
+        if index == 6:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 7:  # 人差指：第1関節
+        if index == 7:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 8:  # 人差指：指先
+        if index == 8:
             cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 9:  # 中指：付け根
+        if index == 9:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 10:  # 中指：第2関節
+        if index == 10:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 11:  # 中指：第1関節
+        if index == 11:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 12:  # 中指：指先
+        if index == 12:
             cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 13:  # 薬指：付け根
+        if index == 13:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 14:  # 薬指：第2関節
+        if index == 14:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 15:  # 薬指：第1関節
+        if index == 15:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 16:  # 薬指：指先
+        if index == 16:
             cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
-        if index == 17:  # 小指：付け根
+        if index == 17:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 18:  # 小指：第2関節
+        if index == 18:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 19:  # 小指：第1関節
+        if index == 19:
             cv.circle(image, (landmark[0], landmark[1]), 5, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 5, (0, 0, 0), 1)
-        if index == 20:  # 小指：指先
+        if index == 20:
             cv.circle(image, (landmark[0], landmark[1]), 8, (255, 255, 255),
                       -1)
             cv.circle(image, (landmark[0], landmark[1]), 8, (0, 0, 0), 1)
