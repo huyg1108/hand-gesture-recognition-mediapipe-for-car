@@ -38,7 +38,8 @@ def get_args():
     # MQTT arguments
     parser.add_argument("--mqtt_broker", help='MQTT broker address', type=str, default="broker.hivemq.com")
     parser.add_argument("--mqtt_port", help='MQTT port', type=int, default=1883)
-    parser.add_argument("--mqtt_topic", help='MQTT topic', type=str, default="raspi/test")
+    parser.add_argument("--mqtt_topic", help='MQTT topic', type=str, default="raspi/hcmus/car/gesture")
+    parser.add_argument("--mqtt_log_topic", help='MQTT topic', type=str, default="raspi/hcmus/car/log")
     parser.add_argument("--enable_mqtt", help='Enable MQTT publishing', action='store_true')
 
     args = parser.parse_args()
@@ -137,6 +138,7 @@ def main():
         mqtt_client = setup_mqtt(args.mqtt_broker, args.mqtt_port)
         if mqtt_client:
             print(f"MQTT will publish to topic: {args.mqtt_topic}")
+            print(f"Log will publish to topic: {args.mqtt_log_topic}")
         else:
             print("MQTT setup failed, continuing without MQTT")
 
@@ -187,11 +189,15 @@ def main():
     gesture_stability_buffer = {
         "hand": deque(maxlen=10)
     }  # Track last 10 gestures for hand only
-    stable_gesture_threshold = 8  # Gesture must appear 6+ times out of 10 to be considered stable
+    stable_gesture_threshold = 6  # Gesture must appear 6+ times out of 10 to be considered stable
     last_stable_gesture = {"hand": None}
     
     # Camera disconnection tracking
     camera_disconnected = False  # Flag to track if camera disconnection has been logged
+    
+    # Unknown gesture tracking
+    unknown_gesture_start_time = None  # Track when unknown gesture started
+    unknown_gesture_threshold = 2.0  # 2 seconds threshold for unknown gesture
 
     #  ########################################################################
     mode = 0
@@ -212,10 +218,24 @@ def main():
         ret, image = cap.retrieve()
         if not ret or not cap.isOpened():
             if not camera_disconnected:
-                current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                disconnect_message = f"[{current_time}] Webcam disconnected!"
-                log_camera_issue(mqtt_client, args.mqtt_topic, disconnect_message)
                 camera_disconnected = True
+                
+                print("Webcam disconnected! Waiting 10 seconds for webcam reconnection...")
+                time.sleep(10)
+                
+                # Try to reconnect
+                cap.release()
+                cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
+                if cap.isOpened():
+                    cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
+                    cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+                    camera_disconnected = False
+                    print('Webcam reconnected successfully!')
+                    continue
+                else:
+                    final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    final_message = f"[{final_time}] Webcam disconnected! Failed to reconnect webcam."
+                    log_camera_issue(mqtt_client, args.mqtt_log_topic, final_message)
             break
 
         image = cv.flip(image, 1)  # Mirror display
@@ -257,15 +277,24 @@ def main():
                 
                 # MQTT Publishing - Send gesture command only when stable
                 if mqtt_client is not None:
-                    # For unknown gestures, send "Stop" command to keep car stopped
+                    # For unknown gestures, send "Stop" command only after 5 seconds
                     if current_hand_sign_id == 5:  # Unknown gesture
-                        # Send stop command for unknown gestures
-                        stop_command = "Stop"
-                        if last_stable_gesture["hand"] != stop_command:
-                            mqtt_client.publish(args.mqtt_topic, stop_command)
-                            print(f"Unknown Gesture - Published: {stop_command} to {args.mqtt_topic}")
-                            last_stable_gesture["hand"] = stop_command
+                        current_time = time.time()
+                        
+                        if unknown_gesture_start_time is None:
+                            # Start tracking unknown gesture time
+                            unknown_gesture_start_time = current_time
+                        elif current_time - unknown_gesture_start_time >= unknown_gesture_threshold:
+                            # Unknown gesture has lasted 5 seconds, send stop command
+                            stop_command = "Stop"
+                            if last_stable_gesture["hand"] != stop_command:
+                                mqtt_client.publish(args.mqtt_topic, stop_command)
+                                print(f"Unknown Gesture - Published: {stop_command} to {args.mqtt_topic}")
+                                last_stable_gesture["hand"] = stop_command
                     else:
+                        # Reset unknown gesture timer when we have a known gesture
+                        unknown_gesture_start_time = None
+                        
                         # Check hand gesture stability for known gestures
                         stable_hand_gesture = check_gesture_stability(
                             gesture_stability_buffer["hand"], current_hand_sign_id, 
@@ -289,12 +318,13 @@ def main():
                     f"Conf: {confidence:.2f}",
                 )
         else:
-            # No hand detected - send stop command
+            # No hand detected - reset unknown gesture timer and send stop command
+            unknown_gesture_start_time = None
             point_history.append([0, 0])
             
             # Send stop command when no hand is detected
             if mqtt_client is not None:
-                stop_command = "stop"
+                stop_command = "Stop"
                 # Only send stop if last published command was not already stop
                 if last_stable_gesture["hand"] != stop_command:
                     mqtt_client.publish(args.mqtt_topic, stop_command)
