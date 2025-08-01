@@ -10,8 +10,10 @@ import paho.mqtt.client as mqtt
 # MQTT Configuration
 BROKER = "broker.hivemq.com"
 PORT = 1883
-TOPIC = "raspi/test"
-FINGER_TOPIC = "car/control/finger"
+TOPIC = "raspi/hcmus/car/gesture"  # Updated to match app.py
+LOG_TOPIC = "raspi/hcmus/car/log"  # Added log topic from app.py
+WIFI_LOG_TOPIC = "raspi/hcmus/car/log/wifi"  # Added WiFi log topic
+ERROR_TOPIC = "car/error"  # Error topic for Node-RED
 CLIENT_ID = "car_controller_test"
 
 # Gesture to car command mapping
@@ -27,9 +29,13 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("✅ Connected to MQTT broker successfully")
         print(f"📡 Subscribed to: {TOPIC}")
-        print(f"📡 Subscribed to: {FINGER_TOPIC}")
+        print(f"📡 Subscribed to: {LOG_TOPIC}")
+        print(f"📡 Subscribed to: {WIFI_LOG_TOPIC}")
+        print(f"📡 Subscribed to: {ERROR_TOPIC}")
         client.subscribe(TOPIC)
-        client.subscribe(FINGER_TOPIC)
+        client.subscribe(LOG_TOPIC)
+        client.subscribe(WIFI_LOG_TOPIC)
+        client.subscribe(ERROR_TOPIC)
     else:
         print(f"❌ Failed to connect to MQTT broker, return code {rc}")
 
@@ -51,8 +57,14 @@ def on_message(client, userdata, msg):
             # Simulate car control
             execute_car_command(command)
             
-        elif topic == FINGER_TOPIC:
-            print(f"   👆 Finger gesture: {command}")
+        elif topic == LOG_TOPIC:
+            print(f"   📝 System log: {command}")
+            
+        elif topic == WIFI_LOG_TOPIC:
+            print(f"   � WiFi log: {command}")
+            
+        elif topic == ERROR_TOPIC:
+            print(f"   🚨 Error message: {command}")
             
         print("-" * 50)
         

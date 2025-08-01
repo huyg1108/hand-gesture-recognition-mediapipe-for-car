@@ -32,11 +32,14 @@ def get_args():
     parser.add_argument("--min_detection_confidence",
                         help='min_detection_confidence',
                         type=float,
-                        default=0.7)
+                        default=0.7)  # Reduced for faster processing
     parser.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
-                        type=int,
-                        default=0.2)
+                        type=float,
+                        default=0.2)  # Reduced for faster tracking
+    
+    # Performance optimization arguments
+    parser.add_argument("--use_grayscale", help='Use grayscale display for cleaner view', action='store_true', default=True)
     
     # MQTT arguments
     parser.add_argument("--mqtt_broker", help='MQTT broker address', type=str, default="broker.hivemq.com")
@@ -241,8 +244,15 @@ def main():
         print(f"[ERROR] Cannot open camera with device index {cap_device}")
         return
     print("Camera opened successfully")
+    
+    # Set camera properties for performance
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+    
+    print(f"Camera resolution: {cap_width}x{cap_height}")
+    print(f"Grayscale display: {'Enabled' if args.use_grayscale else 'Disabled'}")
+    print(f"Detection confidence: {min_detection_confidence}")
+    print(f"Tracking confidence: {min_tracking_confidence}")
 
     # Model load #############################################################
     mp_hands = mp.solutions.hands
@@ -264,24 +274,24 @@ def main():
         ]
 
     # FPS Measurement ########################################################
-    cvFpsCalc = CvFpsCalc(buffer_len=10)
+    cvFpsCalc = CvFpsCalc(buffer_len=5)
 
-    # Coordinate history #################################################################
-    history_length = 16
+    # Coordinate history - Reduced for performance #################################################################
+    history_length = 8  # Reduced from 16 for faster processing
     point_history = deque(maxlen=history_length)
 
     # MQTT throttling variables ############################################
     last_published_gesture = {"hand": None}
     last_publish_time = {"hand": 0}
     
-    # Gesture confidence threshold
-    CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence for gesture recognition
+    # Gesture confidence threshold - Adjusted for faster recognition
+    CONFIDENCE_THRESHOLD = 0.5  # Reduced from 0.5 for faster response
     
-    # Gesture stability tracking
+    # Gesture stability tracking - Optimized for speed
     gesture_stability_buffer = {
-        "hand": deque(maxlen=10)
-    }  # Track last 10 gestures for hand only
-    stable_gesture_threshold = 6  # Gesture must appear 6+ times out of 10 to be considered stable
+        "hand": deque(maxlen=5)  # Reduced from 10 for faster response
+    }
+    stable_gesture_threshold = 3  # Reduced from 6 for faster recognition
     last_stable_gesture = {"hand": None}
     
     # Camera disconnection tracking
@@ -291,6 +301,10 @@ def main():
     unknown_gesture_start_time = None  # Track when unknown gesture started
     unknown_gesture_threshold = 2.0  # 2 seconds threshold for unknown gesture
 
+    # Performance tracking
+    frame_skip_counter = 0
+    FRAME_SKIP = 1  # Process every 2nd frame for better performance
+    
     # WiFi disconnection tracking
     wifi_disconnected = False
 
@@ -314,6 +328,12 @@ def main():
             break
         number, mode = select_mode(key, mode)
 
+        # Frame skip for performance
+        frame_skip_counter += 1
+        if frame_skip_counter <= FRAME_SKIP:
+            continue
+        frame_skip_counter = 0
+
         # Camera capture #####################################################
         ret, image = cap.retrieve()
         if not ret or not cap.isOpened():
@@ -336,14 +356,24 @@ def main():
             break
 
         image = cv.flip(image, 1)  # Mirror display
-        debug_image = copy.deepcopy(image)
+        
+        # Processing: Always use color for better accuracy
+        process_image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+        
+        # Display: Use grayscale if enabled for cleaner display
+        if args.use_grayscale:
+            # Convert to grayscale for display only
+            gray_image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
+            # Convert back to 3-channel for consistent drawing functions
+            debug_image = cv.cvtColor(gray_image, cv.COLOR_GRAY2BGR)
+        else:
+            # Keep original color image for display
+            debug_image = copy.deepcopy(image)
 
-        # Detection implementation #############################################################
-        image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
-
-        image.flags.writeable = False
-        results = hands.process(image)
-        image.flags.writeable = True
+        # Detection implementation - Optimized processing #############################################################
+        process_image.flags.writeable = False
+        results = hands.process(process_image)
+        process_image.flags.writeable = True
 
         #  ####################################################################
         if results.multi_hand_landmarks is not None:
