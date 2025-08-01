@@ -94,7 +94,7 @@ def main():
     print("=" * 50)
     print(f"🔗 Connecting to MQTT broker: {BROKER}:{PORT}")
     
-    client = mqtt.Client(CLIENT_ID)
+    client = mqtt.Client(callback_api_version=mqtt.CallbackAPIVersion.VERSION1, client_id=CLIENT_ID)
     client.on_connect = on_connect
     client.on_message = on_message
     
