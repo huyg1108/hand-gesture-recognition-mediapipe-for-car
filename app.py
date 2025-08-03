@@ -11,6 +11,9 @@ from datetime import datetime
 import socket
 import threading
 import os
+import signal
+import sys
+import atexit
 
 import cv2 as cv
 import numpy as np
@@ -200,7 +203,44 @@ def periodic_wifi_check(interval, mqtt_client, log_topic):
         time.sleep(interval)
 
 
+# Global variable để lưu mqtt_client và log_topic cho cleanup
+global_mqtt_client = None
+global_log_topic = None
+
+def send_shutdown_notification():
+    """Gửi thông báo khi app shutdown"""
+    if global_mqtt_client and is_mqtt_connected(global_mqtt_client):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Gửi thông báo shutdown lên tất cả các topic
+        shutdown_msgs = [
+            (f"{global_log_topic}/system", f"Hand gesture recognition system stopped"),
+            (f"{global_log_topic}/webcam", f"Camera disconnected - System shutdown"),
+            (f"{global_log_topic}/wifi", f"WiFi disconnected - System shutdown")
+        ]
+        
+        try:
+            for topic, message in shutdown_msgs:
+                global_mqtt_client.publish(topic, message)
+                print(f"Shutdown notification sent: {message} to {topic}")
+            time.sleep(2)  # Đợi 2 giây để tất cả messages được gửi
+        except Exception as e:
+            print(f"Failed to send shutdown notification: {e}")
+
+def signal_handler(sig, frame):
+    """Xử lý khi nhận signal terminate"""
+    print("\nReceived termination signal. Shutting down gracefully...")
+    send_shutdown_notification()
+    sys.exit(0)
+
 def main():
+    global global_mqtt_client, global_log_topic
+    
+    # Đăng ký signal handlers và atexit
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
+    signal.signal(signal.SIGTERM, signal_handler)  # Terminate signal
+    atexit.register(send_shutdown_notification)  # Khi app thoát bình thường
+    
     # Argument parsing #################################################################
     args = get_args()
 
@@ -221,6 +261,10 @@ def main():
         if mqtt_client:
             print(f"MQTT will publish to topic: {args.mqtt_topic}")
             print(f"Log will publish to topic: {args.mqtt_log_topic}")
+            
+            # Lưu vào global variables cho cleanup
+            global_mqtt_client = mqtt_client
+            global_log_topic = args.mqtt_log_topic
 
             time.sleep(2)
             log_dir = "logs"
@@ -241,9 +285,25 @@ def main():
 
     cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
     if not cap.isOpened():
-        print(f"[ERROR] Cannot open camera with device index {cap_device}")
+        error_msg = f"[ERROR] Cannot open camera with device index {cap_device}"
+        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", error_msg)
         return
     print("Camera opened successfully")
+    
+    # 🆕 THÊM STARTUP LOGS
+    if mqtt_client:
+        startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Gửi camera startup status
+        camera_startup_msg = f"Camera initialized successfully - Resolution: {cap_width}x{cap_height}"
+        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", camera_startup_msg)
+        
+        # Gửi wifi startup status
+        wifi_startup_msg = f"WiFi connection established - App started successfully"
+        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/wifi", wifi_startup_msg)
+        
+        # Gửi system status
+        system_startup_msg = f"Hand gesture recognition system started"
+        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/system", system_startup_msg)
     
     # Set camera properties for performance
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
@@ -464,6 +524,8 @@ def main():
         # Screen reflection #############################################################
         cv.imshow('Hand Gesture Recognition', debug_image)
 
+    # Cleanup khi thoát
+    send_shutdown_notification()
     cap.release()
     cv.destroyAllWindows()
 

@@ -1,0 +1,753 @@
+[
+    {
+        "id": "main_tab",
+        "type": "tab",
+        "label": "Car Control & Logging System",
+        "disabled": false,
+        "info": "Complete car control system with logging, error monitoring, and ThingSpeak integration"
+    },
+    {
+        "id": "forward_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Tiến",
+        "group": "controls_group",
+        "order": 1,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "⬆️ Tiến",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#4CAF50",
+        "className": "",
+        "icon": "",
+        "payload": "Forward",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 100,
+        "wires": [
+            [
+                "mqtt_out",
+                "log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "back_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Lùi",
+        "group": "controls_group",
+        "order": 2,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "⬇️ Lùi",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#FF9800",
+        "className": "",
+        "icon": "",
+        "payload": "Back",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 140,
+        "wires": [
+            [
+                "mqtt_out",
+                "log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "left_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Trái",
+        "group": "controls_group",
+        "order": 3,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "⬅️ Trái",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#2196F3",
+        "className": "",
+        "icon": "",
+        "payload": "Left",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 180,
+        "wires": [
+            [
+                "mqtt_out",
+                "log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "right_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Phải",
+        "group": "controls_group",
+        "order": 4,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "➡️ Phải",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#9C27B0",
+        "className": "",
+        "icon": "",
+        "payload": "Right",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 220,
+        "wires": [
+            [
+                "mqtt_out",
+                "log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "stop_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Dừng",
+        "group": "controls_group",
+        "order": 5,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "🛑 Dừng",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#F44336",
+        "className": "",
+        "icon": "",
+        "payload": "Stop",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 260,
+        "wires": [
+            [
+                "mqtt_out",
+                "log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "clear_logs_btn",
+        "type": "ui_button",
+        "z": "main_tab",
+        "name": "Xóa Logs",
+        "group": "controls_group",
+        "order": 6,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "🗑️ Xóa Logs",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "#607D8B",
+        "className": "",
+        "icon": "",
+        "payload": "clear_logs",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 150,
+        "y": 300,
+        "wires": [
+            [
+                "clear_logs_function"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_out",
+        "type": "mqtt out",
+        "z": "main_tab",
+        "name": "MQTT to ESP32",
+        "topic": "raspi/hcmus/car/gesture",
+        "qos": "",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt_broker",
+        "x": 400,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "mqtt_in",
+        "type": "mqtt in",
+        "z": "main_tab",
+        "name": "MQTT Receiver",
+        "topic": "raspi/hcmus/car/gesture",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 360,
+        "wires": [
+            [
+                "received_log_manager"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_error_receiver",
+        "type": "mqtt in",
+        "z": "main_tab",
+        "name": "Error Messages Receiver",
+        "topic": "car/error",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 480,
+        "wires": [
+            [
+                "error_message_processor"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_camera_receiver",
+        "type": "mqtt in",
+        "z": "main_tab",
+        "name": "Camera Log Receiver",
+        "topic": "raspi/hcmus/car/log/webcam",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 540,
+        "wires": [
+            [
+                "raspberry_pi_status_manager"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_wifi_receiver",
+        "type": "mqtt in",
+        "z": "main_tab",
+        "name": "WiFi Log Receiver",
+        "topic": "raspi/hcmus/car/log/wifi",
+        "qos": "0",
+        "datatype": "auto",
+        "broker": "mqtt_broker",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 150,
+        "y": 580,
+        "wires": [
+            [
+                "raspberry_pi_status_manager"
+            ]
+        ]
+    },
+    {
+        "id": "error_message_processor",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Error Message Processor",
+        "func": "// Xử lý error messages từ MQTT\ntry {\n    var errorData;\n    \n    // Parse JSON error message\n    if (typeof msg.payload === 'string') {\n        errorData = JSON.parse(msg.payload);\n    } else {\n        errorData = msg.payload;\n    }\n    \n    // Kiểm tra nếu đây là error message\n    if (errorData.error === true) {\n        var timestamp = new Date().toLocaleTimeString();\n        \n        var logEntry = {\n            timestamp: timestamp,\n            type: errorData.type || 'unknown',\n            severity: errorData.severity || 'medium',\n            message: errorData.message || 'Unknown error',\n            source: errorData.source || 'external',\n            originalTimestamp: errorData.timestamp\n        };\n        \n        // Lưu vào error logs\n        var errorLogs = context.get('error_logs') || [];\n        errorLogs.unshift(logEntry);\n        if (errorLogs.length > 20) errorLogs.pop();\n        context.set('error_logs', errorLogs);\n        \n        // Tạo HTML cho error display\n        var html = '<div style=\"font-family: monospace; font-size: 12px; background: #ffebee; padding: 10px; border-radius: 5px;\">';\n        html += '<h4 style=\"margin: 0 0 10px 0; color: #c62828;\">⚠️ Nhật ký lỗi</h4>';\n        \n        if (errorLogs.length === 0) {\n            html += '<div style=\"color: #666; font-style: italic;\">Không có lỗi nào</div>';\n        } else {\n            for (var i = 0; i < Math.min(errorLogs.length, 10); i++) {\n                var log = errorLogs[i];\n                html += '<div style=\"padding: 3px 0; border-bottom: 1px solid #ffcdd2;\">';\n                html += '<span style=\"color: #666;\">' + log.timestamp + '</span> - ';\n                html += '<span style=\"color: #d32f2f; font-weight: bold;\">ERROR:</span>';\n                html += '<span style=\"color: #f57c00;\">' + log.type + '</span>:';\n                html += '<span style=\"color: #d32f2f;\">' + log.severity + '</span>:';\n                html += '<span style=\"color: #b71c1c;\">' + log.message + '</span> ';\n                html += '<span style=\"color: #666; font-size: 10px;\">(từ ' + log.source + ')</span>';\n                html += '</div>';\n            }\n        }\n        html += '</div>';\n        \n        // Gửi đến error display và ThingSpeak với rate limiting\n        var lastSent = context.get('last_thingspeak_send') || 0;\n        var now = Date.now();\n        \n        if (now - lastSent > 15000) { // 15 giây rate limit\n            context.set('last_thingspeak_send', now);\n            return [{ payload: html }, { payload: errorData }];\n        } else {\n            // Chỉ update UI, không gửi ThingSpeak\n            return [{ payload: html }, null];\n        }\n    }\n} catch (e) {\n    // Nếu không parse được, coi như command thường\n    var timestamp = new Date().toLocaleTimeString();\n    var command = msg.payload.toString();\n    \n    // Kiểm tra nếu là invalid command\n    var validCommands = ['Forward', 'Back', 'Left', 'Right', 'Stop'];\n    if (!validCommands.includes(command) && command.trim() !== '') {\n        var errorEntry = {\n            timestamp: timestamp,\n            type: 'invalid_command',\n            severity: 'medium',\n            message: 'Invalid command received: ' + command,\n            source: 'mqtt_receiver'\n        };\n        \n        var errorLogs = context.get('error_logs') || [];\n        errorLogs.unshift(errorEntry);\n        if (errorLogs.length > 20) errorLogs.pop();\n        context.set('error_logs', errorLogs);\n        \n        var html = '<div style=\"font-family: monospace; font-size: 12px; background: #ffebee; padding: 10px; border-radius: 5px;\">';\n        html += '<h4 style=\"margin: 0 0 10px 0; color: #c62828;\">⚠️ Nhật ký lỗi</h4>';\n        for (var i = 0; i < Math.min(errorLogs.length, 10); i++) {\n            var log = errorLogs[i];\n            html += '<div style=\"padding: 3px 0; border-bottom: 1px solid #ffcdd2;\">';\n            html += '<span style=\"color: #666;\">' + log.timestamp + '</span> - ';\n            html += '<span style=\"color: #d32f2f; font-weight: bold;\">ERROR:</span>';\n            html += '<span style=\"color: #f57c00;\">' + log.type + '</span>:';\n            html += '<span style=\"color: #d32f2f;\">' + log.severity + '</span>:';\n            html += '<span style=\"color: #b71c1c;\">' + log.message + '</span> ';\n            html += '<span style=\"color: #666; font-size: 10px;\">(từ ' + log.source + ')</span>';\n            html += '</div>';\n        }\n        html += '</div>';\n        \n        return [{ payload: html }, { payload: errorEntry }];\n    }\n}\n\nreturn null;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 480,
+        "wires": [
+            [
+                "error_logs_display"
+            ],
+            [
+                "thingspeak_rate_limiter"
+            ]
+        ]
+    },
+    {
+        "id": "thingspeak_rate_limiter",
+        "type": "function",
+        "z": "main_tab",
+        "name": "ThingSpeak Rate Limiter",
+        "func": "// Rate limiting cho ThingSpeak (15 giây)\nif (msg.payload === null) {\n    return null;\n}\n\nvar lastSent = context.get('last_send_time') || 0;\nvar now = Date.now();\n\nif (now - lastSent > 15000) {\n    context.set('last_send_time', now);\n    \n    // Log gửi ThingSpeak\n    node.status({fill:\"blue\", shape:\"dot\", text:\"Sending to ThingSpeak...\"});\n    \n    setTimeout(function() {\n        node.status({fill:\"green\", shape:\"dot\", text:\"Sent \" + new Date().toLocaleTimeString()});\n    }, 2000);\n    \n    return msg;\n} else {\n    var waitTime = Math.ceil((15000 - (now - lastSent)) / 1000);\n    node.status({fill:\"yellow\", shape:\"ring\", text:\"Rate limited - wait \" + waitTime + \"s\"});\n    return null;\n}",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 620,
+        "y": 520,
+        "wires": [
+            [
+                "thingspeak_formatter"
+            ]
+        ]
+    },
+    {
+        "id": "raspberry_pi_status_manager",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Raspberry Pi Status Manager",
+        "func": "// Quản lý status của Raspberry Pi (Camera & WiFi & System)\nvar timestamp = new Date().toLocaleTimeString();\nvar message = msg.payload.toString();\nvar topic = msg.topic;\n\n// Debug log\nconsole.log(`[${timestamp}] Received: ${message} from ${topic}`);\n\n// Xác định loại log và status\nvar logType = 'unknown';\nvar statusType = 'info';\nvar shouldSendToThingSpeak = false;\nvar errorData = null;\n\nif (topic.includes('webcam')) {\n    logType = 'camera';\n    // Camera status logic - ưu tiên success trước\n    if (message.toLowerCase().includes('initialized') || \n        message.toLowerCase().includes('successfully') ||\n        message.toLowerCase().includes('opened') ||\n        message.toLowerCase().includes('reconnected')) {\n        statusType = 'success';\n    } else if (message.toLowerCase().includes('disconnected') || \n               message.toLowerCase().includes('failed') || \n               message.toLowerCase().includes('error')) {\n        statusType = 'error';\n        shouldSendToThingSpeak = true;\n    } else {\n        statusType = 'info';\n    }\n} else if (topic.includes('wifi')) {\n    logType = 'wifi';\n    // WiFi status logic - ưu tiên success trước\n    if (message.toLowerCase().includes('established') ||\n        message.toLowerCase().includes('successfully') ||\n        message.toLowerCase().includes('connected') ||\n        message.toLowerCase().includes('reconnected')) {\n        statusType = 'success';\n    } else if (message.toLowerCase().includes('disconnected')) {\n        statusType = 'error';\n        shouldSendToThingSpeak = true;\n    } else {\n        statusType = 'info';\n    }\n} else if (topic.includes('system')) {\n    logType = 'system';\n    if (message.toLowerCase().includes('stopped') || \n        message.toLowerCase().includes('shutdown') ||\n        message.toLowerCase().includes('terminated')) {\n        statusType = 'error';\n        shouldSendToThingSpeak = true;\n        // Khi system stopped, đặt cả camera và wifi thành error\n        context.set('camera_status', 'error');\n        context.set('wifi_status', 'error');\n        console.log('System stopped - setting all statuses to error');\n    } else if (message.toLowerCase().includes('started') || \n        message.toLowerCase().includes('heartbeat') || \n        message.toLowerCase().includes('active')) {\n        statusType = 'success';\n        // Cập nhật cả camera và wifi status khi system active\n        if (message.toLowerCase().includes('camera: active')) {\n            context.set('camera_status', 'success');\n        }\n        if (message.toLowerCase().includes('wifi: connected')) {\n            context.set('wifi_status', 'success');\n        }\n    }\n}\n\n// Kiểm tra nếu message chứa ERROR keyword\nif (message.toLowerCase().includes('error')) {\n    shouldSendToThingSpeak = true;\n    statusType = 'error';\n}\n\n// Tạo error data cho ThingSpeak nếu cần\nif (shouldSendToThingSpeak) {\n    var severity = 'medium';\n    if (statusType === 'error') {\n        severity = 'high';\n    }\n    \n    errorData = {\n        timestamp: new Date().toISOString(),\n        type: logType + '_issue',\n        severity: severity,\n        message: message,\n        source: 'raspberry_pi_' + logType\n    };\n    \n    // Tạo format cho Error Monitoring (cần có error: true)\n    var errorForMonitoring = {\n        error: true,\n        timestamp: new Date().toISOString(),\n        type: logType + '_issue',\n        severity: severity,\n        message: message,\n        source: 'raspberry_pi_' + logType\n    };\n}\n\n// Debug status determination\nconsole.log(`Determined: logType=${logType}, statusType=${statusType}, sendToThingSpeak=${shouldSendToThingSpeak}`);\n\n// Tạo log entry\nvar logEntry = {\n    timestamp: timestamp,\n    type: logType,\n    status: statusType,\n    message: message,\n    topic: topic\n};\n\n// Lưu logs riêng biệt\nvar cameraLogs = context.get('camera_logs') || [];\nvar wifiLogs = context.get('wifi_logs') || [];\nvar systemLogs = context.get('system_logs') || [];\n\nif (logType === 'camera') {\n    cameraLogs.unshift(logEntry);\n    if (cameraLogs.length > 10) cameraLogs.pop();\n    context.set('camera_logs', cameraLogs);\n    context.set('camera_status', statusType);\n    console.log(`Camera status updated to: ${statusType}`);\n} else if (logType === 'wifi') {\n    wifiLogs.unshift(logEntry);\n    if (wifiLogs.length > 10) wifiLogs.pop();\n    context.set('wifi_logs', wifiLogs);\n    context.set('wifi_status', statusType);\n    console.log(`WiFi status updated to: ${statusType}`);\n} else if (logType === 'system') {\n    systemLogs.unshift(logEntry);\n    if (systemLogs.length > 10) systemLogs.pop();\n    context.set('system_logs', systemLogs);\n    context.set('last_heartbeat', timestamp);\n}\n\n// Lấy status hiện tại\nvar currentCameraStatus = context.get('camera_status') || 'unknown';\nvar currentWifiStatus = context.get('wifi_status') || 'unknown';\nvar lastHeartbeat = context.get('last_heartbeat') || 'Never';\n\nconsole.log(`Current status - Camera: ${currentCameraStatus}, WiFi: ${currentWifiStatus}`);\n\n// Xác định display status và màu sắc\nfunction getStatusDisplay(status) {\n    switch(status) {\n        case 'success': return { text: '✅ Active', color: '#4caf50' };\n        case 'error': return { text: '❌ Error', color: '#f44336' };\n        case 'warning': return { text: '⚠️ Warning', color: '#ff9800' };\n        default: return { text: '⚪ Unknown', color: '#9e9e9e' };\n    }\n}\n\nvar cameraDisplay = getStatusDisplay(currentCameraStatus);\nvar wifiDisplay = getStatusDisplay(currentWifiStatus);\n\n// Tạo HTML cho Raspberry Pi Status\nvar html = '<div style=\"font-family: Arial, sans-serif; font-size: 13px; background: linear-gradient(135deg, #e8f5e8 0%, #f3e5f5 100%); padding: 15px; border-radius: 8px; border: 2px solid #4caf50;\">';\nhtml += '<h3 style=\"margin: 0 0 15px 0; color: #2e7d32; text-align: center; display: flex; align-items: center; justify-content: center;\">';\nhtml += '🍓 <span style=\"margin-left: 8px;\">Raspberry Pi Status</span></h3>';\n\n// Status overview với layout cải thiện\nhtml += '<div style=\"display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 15px; text-align: center;\">';\n\n// Camera Status\nhtml += '<div style=\"background: white; padding: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);\">';\nhtml += '<div style=\"font-size: 11px; color: #666; margin-bottom: 4px;\">Camera</div>';\nhtml += '<div style=\"font-weight: bold; font-size: 12px; color: ' + cameraDisplay.color + ';\">' + cameraDisplay.text + '</div>';\nhtml += '</div>';\n\n// WiFi Status\nhtml += '<div style=\"background: white; padding: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);\">';\nhtml += '<div style=\"font-size: 11px; color: #666; margin-bottom: 4px;\">WiFi</div>';\nhtml += '<div style=\"font-weight: bold; font-size: 12px; color: ' + wifiDisplay.color + ';\">' + wifiDisplay.text + '</div>';\nhtml += '</div>';\n\n// Last Update\nhtml += '<div style=\"background: white; padding: 8px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);\">';\nhtml += '<div style=\"font-size: 11px; color: #666; margin-bottom: 4px;\">Last Update</div>';\nhtml += '<div style=\"font-weight: bold; font-size: 10px; color: #333;\">' + timestamp + '</div>';\nhtml += '</div>';\n\nhtml += '</div>';\n\n// Recent logs section\nhtml += '<div style=\"border-top: 1px solid #ddd; padding-top: 10px;\">';\nhtml += '<h4 style=\"margin: 0 0 8px 0; color: #1976d2; font-size: 12px;\">📋 Recent System Logs</h4>';\n\n// Combine all logs\nvar allLogs = [];\nfor (var i = 0; i < Math.min(cameraLogs.length, 3); i++) {\n    allLogs.push(cameraLogs[i]);\n}\nfor (var i = 0; i < Math.min(wifiLogs.length, 3); i++) {\n    allLogs.push(wifiLogs[i]);\n}\nfor (var i = 0; i < Math.min(systemLogs.length, 2); i++) {\n    allLogs.push(systemLogs[i]);\n}\n\n// Sort by timestamp\nallLogs.sort(function(a, b) {\n    return b.timestamp.localeCompare(a.timestamp);\n});\n\nif (allLogs.length === 0) {\n    html += '<div style=\"color: #666; font-style: italic; font-size: 11px; text-align: center; padding: 10px;\">Waiting for Raspberry Pi logs...</div>';\n} else {\n    html += '<div style=\"max-height: 150px; overflow-y: auto; background: white; border-radius: 4px; padding: 5px;\">';\n    for (var i = 0; i < Math.min(allLogs.length, 6); i++) {\n        var log = allLogs[i];\n        var logIcon = '📝';\n        var logColor = '#666';\n        \n        if (log.status === 'error') {\n            logIcon = '❌';\n            logColor = '#f44336';\n        } else if (log.status === 'success') {\n            logIcon = '✅';\n            logColor = '#4caf50';\n        } else if (log.status === 'warning') {\n            logIcon = '⚠️';\n            logColor = '#ff9800';\n        }\n        \n        html += '<div style=\"padding: 3px 5px; border-bottom: 1px solid #f0f0f0; font-size: 10px; line-height: 1.3;\">';\n        html += '<span style=\"color: #888; font-size: 9px;\">' + log.timestamp + '</span> ';\n        html += '<span>' + logIcon + '</span> ';\n        html += '<span style=\"color: ' + logColor + '; font-weight: bold; text-transform: uppercase; font-size: 9px;\">' + log.type + ':</span> ';\n        \n        // Truncate long messages\n        var displayMessage = log.message;\n        if (displayMessage.length > 60) {\n            displayMessage = displayMessage.substring(0, 60) + '...';\n        }\n        html += '<span style=\"color: #333; font-size: 9px;\">' + displayMessage + '</span>';\n        html += '</div>';\n    }\n    html += '</div>';\n}\nhtml += '</div>';\nhtml += '</div>';\n\n// Return: [0] = HTML for display, [1] = errorData for ThingSpeak (if any), [2] = errorData for Error Monitoring\nif (shouldSendToThingSpeak && errorData) {\n    return [{payload: html}, {payload: errorData}, {payload: JSON.stringify(errorForMonitoring)}];\n} else {\n    return [{payload: html}, null, null];\n}",
+        "outputs": 3,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 560,
+        "wires": [
+            [
+                "raspberry_pi_status_display"
+            ],
+            [
+                "thingspeak_rate_limiter"
+            ],
+            [
+                "error_message_processor"
+            ]
+        ]
+    },
+    {
+        "id": "log_manager",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Sent Commands Log Manager",
+        "func": "// Log Manager cho lệnh đã gửi\nvar timestamp = new Date().toLocaleTimeString();\nvar logEntry = {\n    timestamp: timestamp,\n    command: msg.payload,\n    type: 'sent',\n    status: 'published'\n};\n\n// Lưu vào context\nvar logs = context.get('sent_logs') || [];\nlogs.unshift(logEntry);\nif (logs.length > 50) logs.pop(); // Giữ 50 log gần nhất\ncontext.set('sent_logs', logs);\n\n// Tạo HTML cho dashboard\nvar html = '<div style=\"font-family: monospace; font-size: 12px; background: #e8f5e8; padding: 10px; border-radius: 5px;\">';\nhtml += '<h4 style=\"margin: 0 0 10px 0; color: #2e7d32;\">📤 Lệnh đã gửi</h4>';\nif (logs.length === 0) {\n    html += '<div style=\"color: #666; font-style: italic;\">Chưa có lệnh nào được gửi</div>';\n} else {\n    for (var i = 0; i < Math.min(logs.length, 10); i++) {\n        var log = logs[i];\n        html += '<div style=\"padding: 3px 0; border-bottom: 1px solid #c8e6c9;\">';\n        html += '<span style=\"color: #666;\">' + log.timestamp + '</span> - ';\n        html += '<strong style=\"color: #1b5e20;\">' + log.command + '</strong> ';\n        html += '<span style=\"color: #4caf50; font-size: 11px;\">(' + log.status + ')</span>';\n        html += '</div>';\n    }\n}\nhtml += '</div>';\n\nmsg.payload = html;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 120,
+        "wires": [
+            [
+                "sent_logs_display"
+            ]
+        ]
+    },
+    {
+        "id": "received_log_manager",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Received Commands Log Manager",
+        "func": "// Log Manager cho lệnh đã nhận\nvar timestamp = new Date().toLocaleTimeString();\nvar command = msg.payload.toString();\nvar logEntry = {\n    timestamp: timestamp,\n    command: command,\n    type: 'received',\n    topic: msg.topic\n};\n\n// Lưu vào context\nvar logs = context.get('received_logs') || [];\nlogs.unshift(logEntry);\nif (logs.length > 50) logs.pop(); // Giữ 50 log gần nhất\ncontext.set('received_logs', logs);\n\n// Tạo HTML cho dashboard\nvar html = '<div style=\"font-family: monospace; font-size: 12px; background: #e3f2fd; padding: 10px; border-radius: 5px;\">';\nhtml += '<h4 style=\"margin: 0 0 10px 0; color: #1976d2;\">📥 Lệnh đã nhận</h4>';\nif (logs.length === 0) {\n    html += '<div style=\"color: #666; font-style: italic;\">Chưa nhận lệnh nào</div>';\n} else {\n    for (var i = 0; i < Math.min(logs.length, 10); i++) {\n        var log = logs[i];\n        html += '<div style=\"padding: 3px 0; border-bottom: 1px solid #bbdefb;\">';\n        html += '<span style=\"color: #666;\">' + log.timestamp + '</span> - ';\n        html += '<strong style=\"color: #0d47a1;\">' + log.command + '</strong> ';\n        html += '<span style=\"color: #1976d2; font-size: 11px;\">(từ ' + log.topic + ')</span>';\n        html += '</div>';\n    }\n}\nhtml += '</div>';\n\nmsg.payload = html;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 360,
+        "wires": [
+            [
+                "received_logs_display"
+            ]
+        ]
+    },
+    {
+        "id": "clear_logs_function",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Clear All Logs",
+        "func": "// Xóa tất cả logs\ncontext.set('sent_logs', []);\ncontext.set('received_logs', []);\ncontext.set('error_logs', []);\ncontext.set('camera_logs', []);\ncontext.set('wifi_logs', []);\n\n// Tạo thông báo đã xóa\nvar html = '<div style=\"font-family: monospace; font-size: 12px; background: #fff3e0; padding: 10px; border-radius: 5px; border: 2px solid #ff9800;\">';\nhtml += '<h4 style=\"margin: 0; color: #e65100;\">🗑️ Đã xóa tất cả logs!</h4>';\nhtml += '</div>';\n\n// Gửi empty logs đến tất cả displays\nvar sentMsg = {payload: '<div style=\"font-family: monospace; font-size: 12px; background: #e8f5e8; padding: 10px; border-radius: 5px;\"><h4 style=\"margin: 0 0 10px 0; color: #2e7d32;\">📤 Lệnh đã gửi</h4><div style=\"color: #666; font-style: italic;\">Chưa có lệnh nào được gửi</div></div>'};\nvar receivedMsg = {payload: '<div style=\"font-family: monospace; font-size: 12px; background: #e3f2fd; padding: 10px; border-radius: 5px;\"><h4 style=\"margin: 0 0 10px 0; color: #1976d2;\">📥 Lệnh đã nhận</h4><div style=\"color: #666; font-style: italic;\">Chưa nhận lệnh nào</div></div>'};\nvar errorMsg = {payload: '<div style=\"font-family: monospace; font-size: 12px; background: #ffebee; padding: 10px; border-radius: 5px;\"><h4 style=\"margin: 0 0 10px 0; color: #c62828;\">⚠️ Nhật ký lỗi</h4><div style=\"color: #666; font-style: italic;\">Không có lỗi nào</div></div>'};\n\n// Reset Raspberry Pi Status\nvar raspiMsg = {payload: '<div style=\"font-family: monospace; font-size: 12px; background: linear-gradient(135deg, #e8f5e8 0%, #f3e5f5 100%); padding: 15px; border-radius: 8px; border: 2px solid #4caf50;\"><h3 style=\"margin: 0 0 15px 0; color: #2e7d32; text-align: center;\">🍓 Raspberry Pi Status</h3><div style=\"display: flex; justify-content: space-around; margin-bottom: 15px; flex-wrap: wrap;\"><div style=\"text-align: center; margin: 5px;\"><div style=\"font-size: 11px; color: #666;\">Camera</div><div style=\"font-weight: bold; color: #666;\">⚪ Unknown</div></div><div style=\"text-align: center; margin: 5px;\"><div style=\"font-size: 11px; color: #666;\">WiFi</div><div style=\"font-weight: bold; color: #666;\">⚪ Unknown</div></div><div style=\"text-align: center; margin: 5px;\"><div style=\"font-size: 11px; color: #666;\">Last Update</div><div style=\"font-weight: bold; color: #666;\">-</div></div></div><div style=\"border-top: 1px solid #ccc; padding-top: 10px;\"><h4 style=\"margin: 0 0 8px 0; color: #1976d2;\">📋 Recent System Logs</h4><div style=\"color: #666; font-style: italic; font-size: 11px;\">No system logs available</div></div></div>'};\n\nreturn [sentMsg, receivedMsg, errorMsg, {payload: html}, raspiMsg];",
+        "outputs": 5,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 300,
+        "wires": [
+            ["sent_logs_display"],
+            ["received_logs_display"],
+            ["error_logs_display"],
+            ["clear_notification_display"],
+            ["raspberry_pi_status_display"]
+        ]
+    },
+    {
+        "id": "init_raspberry_pi_status",
+        "type": "inject",
+        "z": "main_tab",
+        "name": "Initialize Raspberry Pi Status",
+        "props": [
+            {
+                "p": "payload"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "init",
+        "payloadType": "str",
+        "x": 150,
+        "y": 620,
+        "wires": [
+            [
+                "init_status_function"
+            ]
+        ]
+    },
+    {
+        "id": "init_status_function",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Initialize Status",
+        "func": "// Khởi tạo Raspberry Pi Status display\nvar html = '<div style=\"font-family: monospace; font-size: 12px; background: linear-gradient(135deg, #e8f5e8 0%, #f3e5f5 100%); padding: 15px; border-radius: 8px; border: 2px solid #4caf50;\">';\nhtml += '<h3 style=\"margin: 0 0 15px 0; color: #2e7d32; text-align: center;\">🍓 Raspberry Pi Status</h3>';\nhtml += '<div style=\"display: flex; justify-content: space-around; margin-bottom: 15px; flex-wrap: wrap;\">';\nhtml += '<div style=\"text-align: center; margin: 5px;\">';\nhtml += '<div style=\"font-size: 11px; color: #666;\">Camera</div>';\nhtml += '<div style=\"font-weight: bold; color: #666;\">⚪ Waiting...</div>';\nhtml += '</div>';\nhtml += '<div style=\"text-align: center; margin: 5px;\">';\nhtml += '<div style=\"font-size: 11px; color: #666;\">WiFi</div>';\nhtml += '<div style=\"font-weight: bold; color: #666;\">⚪ Waiting...</div>';\nhtml += '</div>';\nhtml += '<div style=\"text-align: center; margin: 5px;\">';\nhtml += '<div style=\"font-size: 11px; color: #666;\">System</div>';\nhtml += '<div style=\"font-weight: bold; color: #4caf50;\">✅ Ready</div>';\nhtml += '</div>';\nhtml += '</div>';\nhtml += '<div style=\"border-top: 1px solid #ccc; padding-top: 10px;\">';\nhtml += '<h4 style=\"margin: 0 0 8px 0; color: #1976d2;\">📋 Recent System Logs</h4>';\nhtml += '<div style=\"color: #666; font-style: italic; font-size: 11px;\">Waiting for Raspberry Pi connection...</div>';\nhtml += '</div>';\nhtml += '</div>';\n\nmsg.payload = html;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 620,
+        "wires": [
+            [
+                "raspberry_pi_status_display"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt_status_monitor",
+        "type": "status",
+        "z": "main_tab",
+        "name": "MQTT Status Monitor",
+        "scope": [
+            "mqtt_out",
+            "mqtt_in"
+        ],
+        "x": 150,
+        "y": 420,
+        "wires": [
+            [
+                "error_detector"
+            ]
+        ]
+    },
+    {
+        "id": "error_detector",
+        "type": "function",
+        "z": "main_tab",
+        "name": "Error Detector",
+        "func": "// Phát hiện và xử lý lỗi\nvar timestamp = new Date().toISOString();\nvar errorData = {\n    timestamp: timestamp,\n    type: 'connection_error',\n    severity: 'high',\n    message: 'MQTT connection lost',\n    node: msg.status.source.name || 'unknown',\n    details: msg.status\n};\n\n// Chỉ log lỗi thật sự (không phải connected status)\nif (msg.status.fill === 'red' || msg.status.text.includes('error') || msg.status.text.includes('disconnected')) {\n    // Lưu error log\n    var errorLogs = context.get('error_logs') || [];\n    errorLogs.unshift(errorData);\n    if (errorLogs.length > 20) errorLogs.pop();\n    context.set('error_logs', errorLogs);\n    \n    // Tạo HTML cho error display\n    var html = '<div style=\"font-family: monospace; font-size: 12px; background: #ffebee; padding: 10px; border-radius: 5px;\">';\n    html += '<h4 style=\"margin: 0 0 10px 0; color: #c62828;\">⚠️ Nhật ký lỗi</h4>';\n    for (var i = 0; i < Math.min(errorLogs.length, 10); i++) {\n        var log = errorLogs[i];\n        var timeStr = new Date(log.timestamp).toLocaleTimeString();\n        html += '<div style=\"padding: 3px 0; border-bottom: 1px solid #ffcdd2;\">';\n        html += '<span style=\"color: #666;\">' + timeStr + '</span> - ';\n        html += '<span style=\"color: #d32f2f; font-weight: bold;\">[' + log.severity.toUpperCase() + ']</span> ';\n        html += '<span style=\"color: #b71c1c;\">' + log.message + '</span> ';\n        html += '<span style=\"color: #666; font-size: 10px;\">(' + log.node + ')</span>';\n        html += '</div>';\n    }\n    html += '</div>';\n    \n    // Gửi đến cả error display và ThingSpeak\n    msg.payload = html;\n    msg.errorData = errorData;\n    return [msg, {payload: errorData}];\n}\n\nreturn null;",
+        "outputs": 2,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 420,
+        "wires": [
+            [
+                "error_logs_display"
+            ],
+            [
+                "thingspeak_formatter"
+            ]
+        ]
+    },
+    {
+        "id": "thingspeak_formatter",
+        "type": "function",
+        "z": "main_tab",
+        "name": "ThingSpeak Formatter",
+        "func": "// Format dữ liệu cho ThingSpeak - chỉ 3 fields\nvar errorData = msg.payload;\nvar timestamp = new Date().toISOString();\n\n// Xác định mức độ nghiêm trọng (severity level)\nvar severityLevel = 1; // Default: low\nif (errorData.severity) {\n    switch(errorData.severity.toLowerCase()) {\n        case 'high':\n        case 'critical':\n        case 'error':\n            severityLevel = 3;\n            break;\n        case 'medium':\n        case 'warning':\n            severityLevel = 2;\n            break;\n        default:\n            severityLevel = 1; // low/info\n    }\n}\n\n// Tạo message tổng hợp\nvar combinedMessage = '';\nif (errorData.type) {\n    combinedMessage += '[' + errorData.type.toUpperCase() + '] ';\n}\ncombinedMessage += (errorData.message || 'No message');\nif (errorData.source && errorData.source !== 'system') {\n    combinedMessage += ' (from: ' + errorData.source + ')';\n}\n\n// Tạo payload cho ThingSpeak API - chỉ 3 fields\nmsg.payload = {\n    api_key: 'LRGXV5Y7KITIE1V7',\n    field1: severityLevel,                    // Mức độ nghiêm trọng (1=low, 2=medium, 3=high)\n    field2: combinedMessage.substring(0, 255), // Message tổng hợp\n    field3: timestamp                         // Timestamp ISO\n};\n\n// Debug log\nnode.warn('Sending to ThingSpeak (3 fields): ' + JSON.stringify(msg.payload));\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 820,
+        "y": 520,
+        "wires": [
+            [
+                "thingspeak_sender"
+            ]
+        ]
+    },
+    {
+        "id": "thingspeak_sender",
+        "type": "http request",
+        "z": "main_tab",
+        "name": "Send to ThingSpeak",
+        "method": "POST",
+        "ret": "txt",
+        "paytoqs": "query",
+        "url": "https://api.thingspeak.com/update",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 1020,
+        "y": 520,
+        "wires": [
+            [
+                "thingspeak_debug"
+            ]
+        ]
+    },
+    {
+        "id": "thingspeak_debug",
+        "type": "debug",
+        "z": "main_tab",
+        "name": "ThingSpeak Response",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1240,
+        "y": 520,
+        "wires": []
+    },
+    {
+        "id": "sent_logs_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "logs_group",
+        "order": 1,
+        "width": 6,
+        "height": 8,
+        "name": "Sent Commands Display",
+        "label": "",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 640,
+        "y": 120,
+        "wires": [[]]
+    },
+    {
+        "id": "received_logs_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "logs_group",
+        "order": 2,
+        "width": 6,
+        "height": 8,
+        "name": "Received Commands Display",
+        "label": "",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 640,
+        "y": 360,
+        "wires": [[]]
+    },
+    {
+        "id": "error_logs_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "error_group",
+        "order": 1,
+        "width": 12,
+        "height": 6,
+        "name": "Error Logs Display",
+        "label": "",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 640,
+        "y": 420,
+        "wires": [[]]
+    },
+    {
+        "id": "clear_notification_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "controls_group",
+        "order": 7,
+        "width": 12,
+        "height": 2,
+        "name": "Clear Notification",
+        "label": "",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": false,
+        "fwdInMessages": true,
+        "resendOnRefresh": false,
+        "templateScope": "local",
+        "className": "",
+        "x": 640,
+        "y": 300,
+        "wires": [[]]
+    },
+    {
+        "id": "system_status_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "status_group",
+        "order": 1,
+        "width": 12,
+        "height": 3,
+        "name": "System Status",
+        "label": "Trạng thái hệ thống",
+        "format": "<div style=\"font-family: monospace; font-size: 14px; padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 8px; text-align: center;\">\n    <h3 style=\"margin: 0 0 10px 0;\">🚗 Car Control System</h3>\n    <div style=\"display: flex; justify-content: space-around; flex-wrap: wrap;\">\n        <div style=\"margin: 5px;\">\n            <div style=\"font-size: 12px; opacity: 0.8;\">MQTT Broker</div>\n            <div style=\"font-weight: bold;\">broker.hivemq.com:1883</div>\n        </div>\n        <div style=\"margin: 5px;\">\n            <div style=\"font-size: 12px; opacity: 0.8;\">Topic</div>\n            <div style=\"font-weight: bold;\">raspi/hcmus/car/gesture</div>\n        </div>\n        <div style=\"margin: 5px;\">\n            <div style=\"font-size: 12px; opacity: 0.8;\">ThingSpeak</div>\n            <div style=\"font-weight: bold;\">Enabled</div>\n        </div>\n    </div>\n    <div style=\"margin-top: 10px; font-size: 12px; opacity: 0.9;\">\n        Sử dụng buttons điều khiển xe, logs sẽ hiển thị real-time\n    </div>\n</div>",
+        "storeOutMessages": false,
+        "fwdInMessages": false,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 150,
+        "y": 500,
+        "wires": [[]]
+    },
+    {
+        "id": "raspberry_pi_status_display",
+        "type": "ui_template",
+        "z": "main_tab",
+        "group": "status_group",
+        "order": 2,
+        "width": 12,
+        "height": 6,
+        "name": "Raspberry Pi Status",
+        "label": "",
+        "format": "<div ng-bind-html=\"msg.payload\"></div>",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 650,
+        "y": 560,
+        "wires": [[]]
+    },
+    {
+        "id": "controls_group",
+        "type": "ui_group",
+        "name": "Car Controls",
+        "tab": "main_dashboard",
+        "order": 1,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "logs_group",
+        "type": "ui_group",
+        "name": "Command Logs",
+        "tab": "main_dashboard",
+        "order": 2,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "error_group",
+        "type": "ui_group",
+        "name": "Error Monitoring",
+        "tab": "main_dashboard",
+        "order": 4,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "status_group",
+        "type": "ui_group",
+        "name": "System Status",
+        "tab": "main_dashboard",
+        "order": 3,
+        "disp": true,
+        "width": "12",
+        "collapse": false,
+        "className": ""
+    },
+    {
+        "id": "main_dashboard",
+        "type": "ui_tab",
+        "name": "Car Control Dashboard",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "mqtt_broker",
+        "type": "mqtt-broker",
+        "name": "",
+        "broker": "broker.hivemq.com",
+        "port": "1883",
+        "clientid": "",
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoConnect": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "sessionExpiry": ""
+    }
+]
