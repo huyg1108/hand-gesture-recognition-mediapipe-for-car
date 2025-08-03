@@ -290,7 +290,7 @@ def main():
         return
     print("Camera opened successfully")
     
-    # 🆕 THÊM STARTUP LOGS
+    # THÊM STARTUP LOGS
     if mqtt_client:
         startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Gửi camera startup status
