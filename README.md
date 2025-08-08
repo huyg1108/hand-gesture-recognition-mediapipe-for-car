@@ -1,4 +1,4 @@
-# Hand Gesture Car Control
+# CSC16106 - Project 2: Hand Gesture Car Control
 
 ## System Overview
 
@@ -106,3 +106,10 @@ void callback(char* topic, byte* payload, unsigned int length) {
 3.  **Retrain the Model:** Run the training script to retrain the model with the newly added dataset.
 
 4.  **Update ESP32 Code:** Modify the ESP32's `callback` function to handle the new command string that will be sent for your new gesture.
+
+# Contributors:
+
+* Pham Quang Duy
+* Ngo Hoang Nam Hung
+* Trieu Gia Huy
+* Nguyen Gia Nguyen
