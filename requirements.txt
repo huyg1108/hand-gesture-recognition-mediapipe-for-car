@@ -1,5 +1,4 @@
-opencv-python==4.8.1.78
-mediapipe==0.10.7
+mediapipe-rpi3==0.8.8
 numpy==1.24.3
-tensorflow==2.13.0
+tensorflow==2.5.0
 paho-mqtt==1.6.1
