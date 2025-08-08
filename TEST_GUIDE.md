@@ -1,55 +1,47 @@
-# 🤖 Hand Gesture Car Control - Test Guide
+# Hand Gesture Car Control
 
-## 📋 Tổng quan hệ thống
+## System Overview
 
-Hệ thống nhận diện cử chỉ tay để điều khiển xe gồm:
-- **Camera laptop** → **Gesture Recognition** → **MQTT** → **ESP32** → **Car Control**
+The hand gesture recognition system for car control consists of:
+- **Webcam** $\rightarrow$ **Gesture Recognition** $\rightarrow$ **MQTT** $\rightarrow$ **ESP32** $\rightarrow$ **Car Control**
 
-## 🎯 Các cử chỉ được nhận diện:
-1. **Forward** - Cử chỉ tiến (✋ mở bàn tay)
-2. **Back** - Cử chỉ lùi 
-3. **Left** - Cử chỉ rẽ trái
-4. **Right** - Cử chỉ rẽ phải  
-5. **Stop** - Cử chỉ dừng (✊ nắm tay)
+## Recognized Gestures:
+1. **Forward** - Car moves forward (open hand)
+2. **Back** - Car moves backward (fist)
+3. **Left** - Car turns left (thumb held horizontally, pointing to the side)
+4. **Right** - Car turns right (thumb and index finger)
+5. **Stop** - Car stops (index and pinky finger)
 
-## 🔧 Cài đặt môi trường
+**Note**: These gestures are configured and tested for the right hand. The system has not yet been tested with the left hand.
 
-### 1. Cài đặt thư viện:
+## Environment Setup
+
+* Python 3.7.3
+* Install necessary libraries:
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Kiểm tra camera:
-```bash
-# Test camera hoạt động
-python -c "import cv2; cap = cv2.VideoCapture(0); print('Camera OK' if cap.isOpened() else 'Camera Error'); cap.release()"
-```
+## How to Run
 
-## 🧪 Cách test hệ thống
-
-### Step 1: Test chỉ nhận diện (không MQTT)
+### Recognition Only (without MQTT)
 ```bash
-# Chạy gesture recognition cơ bản
 python app.py
 ```
-- Quan sát cử chỉ được nhận diện trên màn hình
-- Nhấn ESC để thoát
+- Observe the recognized gesture on the screen.
+- Press ESC to exit.
 
-### Step 2: Test với MQTT receiver
+### Recognition with MQTT Receiver
 ```bash
-# Terminal 1: Chạy MQTT receiver (giả lập ESP32)
-python test_mqtt_receiver.py
-
-# Terminal 2: Chạy gesture recognition với MQTT
 python app.py --enable_mqtt
 ```
 
-### Step 3: Test với custom MQTT settings
+### Custom MQTT settings
 ```bash
 python app.py --enable_mqtt --mqtt_broker "your_broker" --mqtt_topic "custom/topic"
 ```
 
-## 📡 MQTT Configuration
+## MQTT Configuration
 
 ### Default settings:
 - **Broker**: broker.hivemq.com
@@ -65,58 +57,16 @@ python app.py --enable_mqtt \
   --mqtt_topic "raspi/test"
 ```
 
-## 🔍 Debugging và kiểm tra
+## Optimize for RPi:
 
-### 1. Kiểm tra MQTT connection:
-Khi chạy `python app.py --enable_mqtt`, bạn sẽ thấy:
-```
-Setting up MQTT connection to broker.hivemq.com:1883
-Connected to MQTT broker successfully
-MQTT will publish to topic: car/control
-```
+* **Reduce camera resolution**: Lower the processing resolution (e.g., 320x240) in the app.py script to decrease CPU load.
+* **Display in grayscale**: Convert the preview window to grayscale to save rendering resources. The actual image processing can still use the RGB data for accuracy.
+* **Lower system display resolution**: Reduce the Raspberry Pi's global screen resolution in the OS settings to free up overall system resources.
 
-### 2. Kiểm tra gesture detection:
-- Quan sát terminal sẽ hiển thị: `📡 Published: Forward to car/control`
-- MQTT receiver sẽ nhận và hiển thị commands
+## ESP32 Code Structure
 
-### 3. Troubleshooting:
-- **Camera không mở được**: Thay đổi `--device 1` hoặc `--device 2`
-- **MQTT lỗi**: Kiểm tra internet connection
-- **Gesture không chính xác**: Điều chỉnh lighting và góc camera
-
-## 🚀 Chuyển đổi lên Raspberry Pi
-
-### Các thay đổi cần thiết:
-
-1. **Camera setup cho RPi**:
-```python
-# Thay đổi trong app.py
-cap = cv.VideoCapture(0)  # USB camera trên RPi
-# hoặc
-cap = cv.VideoCapture('/dev/video0')  # Specific device
-```
-
-2. **MQTT broker local** (tùy chọn):
-```bash
-# Cài đặt Mosquitto trên RPi
-sudo apt install mosquitto mosquitto-clients
-sudo systemctl start mosquitto
-
-# Sử dụng local broker
-python app.py --enable_mqtt --mqtt_broker "localhost"
-```
-
-3. **Optimize cho RPi**:
-```python
-# Thêm vào app.py để giảm CPU usage
-parser.add_argument("--width", type=int, default=640)  # Giảm resolution
-parser.add_argument("--height", type=int, default=480)
-```
-
-## 📊 ESP32 Code Structure
-
+The ESP32 will receive MQTT messages as follows:
 ```cpp
-// ESP32 sẽ nhận MQTT messages như sau:
 void callback(char* topic, byte* payload, unsigned int length) {
   String command = String((char*)payload).substring(0, length);
   
@@ -134,24 +84,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 ```
 
-## ⚠️ Lưu ý quan trọng
+## Important Notes
 
-1. **Performance**: Gesture recognition có thể chậm trên laptop yếu
-2. **Lighting**: Cần ánh sáng tốt để nhận diện chính xác
-3. **Distance**: Giữ tay cách camera 50-100cm
-4. **Stability**: Giữ cử chỉ ổn định 1-2 giây để tránh nhiễu
+1. **Performance**: Gesture recognition can be slow on low-end hardware.
+2. **Lighting**: Good lighting is required for accurate gesture recognition.
+3. **Distance**: Keep your hand 50-100cm away from the camera.
+4. **Stability**: Hold the gesture steady for 1-2 seconds to avoid noise.
 
-## 🎛️ Tùy chỉnh thêm
+## Further Customization
 
-### Thêm gesture mới:
+### Adding a new gesture:
 1. Edit `model/keypoint_classifier/keypoint_classifier_label.csv`
-2. Train lại model nếu cần
-3. Update ESP32 code để handle command mới
-
-### Thay đổi MQTT topic structure:
-```python
-# Có thể custom theo format:
-# car/control/direction  (Forward, Back, Left, Right, Stop)
-# car/control/speed      (Fast, Slow)
-# car/control/mode       (Manual, Auto)
-```
+2. Add new landmark dataset for new gesture.
+3. Retrain the model with new dataset.
+4. Update the ESP32 code to handle the new command.
