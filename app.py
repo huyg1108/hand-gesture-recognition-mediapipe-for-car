@@ -28,18 +28,18 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--width", help='cap width', type=int, default=480)
-    parser.add_argument("--height", help='cap height', type=int, default=320)
+    parser.add_argument("--width", help='cap width', type=int, default=320)
+    parser.add_argument("--height", help='cap height', type=int, default=240)
 
     parser.add_argument('--use_static_image_mode', action='store_true')
     parser.add_argument("--min_detection_confidence",
                         help='min_detection_confidence',
                         type=float,
-                        default=0.7)  # Reduced for faster processing
+                        default=0.7)
     parser.add_argument("--min_tracking_confidence",
                         help='min_tracking_confidence',
                         type=float,
-                        default=0.2)  # Reduced for faster tracking
+                        default=0.2)
     
     # Performance optimization arguments
     parser.add_argument("--use_grayscale", help='Use grayscale display for cleaner view', action='store_true', default=True)
@@ -81,6 +81,16 @@ def setup_mqtt(broker, port):
         print(f"MQTT setup failed: {e}")
         return None
 
+def find_working_camera():
+    for i in range(5):
+        dev = f'/dev/video{i}'
+        if os.path.exists(dev):
+            cap = cv.VideoCapture(dev)
+            print(dev)
+            if cap.isOpened():
+                return cap
+    return None
+
 def check_gesture_stability(gesture_buffer, gesture_id, labels, threshold):
     """Check if a gesture is stable enough to publish"""
     if 0 <= gesture_id < len(labels):
@@ -115,8 +125,8 @@ def publish_gesture_command(mqtt_client, topic, gesture_id, labels, last_publish
     
     return last_published, last_time
 
-def log_camera_issue(mqtt_client, topic, message):
-    """Log camera issue and push to MQTT if enabled."""
+def log_system_issue(mqtt_client, topic, message):
+    """Log issue and push to MQTT if enabled."""
     print(message)
     if mqtt_client is not None:
         try:
@@ -169,8 +179,8 @@ def push_offline_logs(mqtt_client, log_topic):
             for log in logs:
                 if is_mqtt_connected(mqtt_client):
                     try:
-                        mqtt_client.publish(log_topic + "/wifi", log.strip())
-                        print(f"Pushed offline log: {log.strip()} to {log_topic}/wifi")
+                        mqtt_client.publish(log_topic, log.strip())
+                        print(f"Pushed offline log: {log.strip()} to {log_topic}")
                     except Exception as e:
                         print(f"Failed to push log: {log.strip()} - {e}")
                         remaining_logs.append(log)  # Keep failed logs
@@ -193,7 +203,7 @@ def periodic_wifi_check(interval, mqtt_client, log_topic):
                 wifi_disconnected = True
                 final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 final_message = f"[{final_time}] WiFi disconnected!"
-                log_camera_issue(mqtt_client, log_topic + "/wifi", final_message)
+                log_system_issue(mqtt_client, log_topic + "/wifi", final_message)
                 log_wifi_disconnection_offline(final_message)  # Log offline
         else:
             if wifi_disconnected:
@@ -203,16 +213,15 @@ def periodic_wifi_check(interval, mqtt_client, log_topic):
         time.sleep(interval)
 
 
-# Global variable để lưu mqtt_client và log_topic cho cleanup
+# Global variable to save mqtt_client and log_topic for cleanup
 global_mqtt_client = None
 global_log_topic = None
 
 def send_shutdown_notification():
-    """Gửi thông báo khi app shutdown"""
+    """Send notification when app shutdown"""
     if global_mqtt_client and is_mqtt_connected(global_mqtt_client):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # Gửi thông báo shutdown lên tất cả các topic
         shutdown_msgs = [
             (f"{global_log_topic}/system", f"Hand gesture recognition system stopped"),
             (f"{global_log_topic}/webcam", f"Camera disconnected - System shutdown"),
@@ -223,12 +232,12 @@ def send_shutdown_notification():
             for topic, message in shutdown_msgs:
                 global_mqtt_client.publish(topic, message)
                 print(f"Shutdown notification sent: {message} to {topic}")
-            time.sleep(2)  # Đợi 2 giây để tất cả messages được gửi
+            time.sleep(2)
         except Exception as e:
             print(f"Failed to send shutdown notification: {e}")
 
 def signal_handler(sig, frame):
-    """Xử lý khi nhận signal terminate"""
+    """Handle when receive signal terminate"""
     print("\nReceived termination signal. Shutting down gracefully...")
     send_shutdown_notification()
     sys.exit(0)
@@ -236,12 +245,12 @@ def signal_handler(sig, frame):
 def main():
     global global_mqtt_client, global_log_topic
     
-    # Đăng ký signal handlers và atexit
+    # Signal handlers and atexit
     signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
     signal.signal(signal.SIGTERM, signal_handler)  # Terminate signal
-    atexit.register(send_shutdown_notification)  # Khi app thoát bình thường
+    atexit.register(send_shutdown_notification)
     
-    # Argument parsing #################################################################
+    # Argument parsing
     args = get_args()
 
     cap_device = args.device
@@ -275,7 +284,7 @@ def main():
                 if remaining_logs:
                     print("Offline logs detected at startup. Pushing...")
                     if is_mqtt_connected(mqtt_client):
-                        push_offline_logs(mqtt_client, args.mqtt_log_topic)
+                        push_offline_logs(mqtt_client, args.mqtt_log_topic + '/wifi')
                     else:
                         print("MQTT client not connected. Retaining log.")
         else:
@@ -283,38 +292,34 @@ def main():
 
     print("Camera opening")
 
-    cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
+    cap = find_working_camera()
     if not cap.isOpened():
         error_msg = f"[ERROR] Cannot open camera with device index {cap_device}"
-        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", error_msg)
+        log_system_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", error_msg)
         return
     print("Camera opened successfully")
     
-    # THÊM STARTUP LOGS
+    # Startup logging
     if mqtt_client:
         startup_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        # Gửi camera startup status
+        
+        # Send camera startup status
         camera_startup_msg = f"Camera initialized successfully - Resolution: {cap_width}x{cap_height}"
-        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", camera_startup_msg)
+        log_system_issue(mqtt_client, f"{args.mqtt_log_topic}/webcam", camera_startup_msg)
         
-        # Gửi wifi startup status
+        # Send wifi startup status
         wifi_startup_msg = f"WiFi connection established - App started successfully"
-        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/wifi", wifi_startup_msg)
+        log_system_issue(mqtt_client, f"{args.mqtt_log_topic}/wifi", wifi_startup_msg)
         
-        # Gửi system status
+        # Send system status
         system_startup_msg = f"Hand gesture recognition system started"
-        log_camera_issue(mqtt_client, f"{args.mqtt_log_topic}/system", system_startup_msg)
+        log_system_issue(mqtt_client, f"{args.mqtt_log_topic}/system", system_startup_msg)
     
     # Set camera properties for performance
     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
     
-    print(f"Camera resolution: {cap_width}x{cap_height}")
-    print(f"Grayscale display: {'Enabled' if args.use_grayscale else 'Disabled'}")
-    print(f"Detection confidence: {min_detection_confidence}")
-    print(f"Tracking confidence: {min_tracking_confidence}")
-
-    # Model load #############################################################
+    # Model load
     mp_hands = mp.solutions.hands
     hands = mp_hands.Hands(
         static_image_mode=use_static_image_mode,
@@ -325,7 +330,7 @@ def main():
 
     keypoint_classifier = KeyPointClassifier()
 
-    # Read labels ###########################################################
+    # Read labels
     with open('model/keypoint_classifier/keypoint_classifier_label.csv',
               encoding='utf-8-sig') as f:
         keypoint_classifier_labels = csv.reader(f)
@@ -333,25 +338,25 @@ def main():
             row[0] for row in keypoint_classifier_labels
         ]
 
-    # FPS Measurement ########################################################
+    # FPS Measurement
     cvFpsCalc = CvFpsCalc(buffer_len=5)
 
-    # Coordinate history - Reduced for performance #################################################################
-    history_length = 8  # Reduced from 16 for faster processing
+    # Coordinate history
+    history_length = 8
     point_history = deque(maxlen=history_length)
 
-    # MQTT throttling variables ############################################
+    # MQTT throttling variables
     last_published_gesture = {"hand": None}
     last_publish_time = {"hand": 0}
     
-    # Gesture confidence threshold - Adjusted for faster recognition
-    CONFIDENCE_THRESHOLD = 0.5  # Reduced from 0.5 for faster response
+    # Gesture confidence threshold
+    CONFIDENCE_THRESHOLD = 0.5
     
-    # Gesture stability tracking - Optimized for speed
+    # Gesture stability tracking
     gesture_stability_buffer = {
-        "hand": deque(maxlen=5)  # Reduced from 10 for faster response
+        "hand": deque(maxlen=5)
     }
-    stable_gesture_threshold = 3  # Reduced from 6 for faster recognition
+    stable_gesture_threshold = 3
     last_stable_gesture = {"hand": None}
     
     # Camera disconnection tracking
@@ -368,7 +373,6 @@ def main():
     # WiFi disconnection tracking
     wifi_disconnected = False
 
-    #  ########################################################################
     mode = 0
 
     # Start a thread for periodic WiFi check
@@ -378,23 +382,37 @@ def main():
 
     while True:
         if not cap.grab():
-            print("Không thể grab frame!")
-            break
+            print("Webcam disconnected! Waiting 10 seconds for webcam reconnection...")
+            time.sleep(10)
+            cap.release()
+
+            cap = find_working_camera()
+            if cap.isOpened():
+                cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
+                cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
+                print('Webcam reconnected successfully!')
+                continue
+            else:
+                final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                final_message = f"[{final_time}] Webcam disconnected! Failed to reconnect webcam."
+                log_system_issue(mqtt_client, args.mqtt_log_topic + "/webcam", final_message)
+                break
+        
         fps = cvFpsCalc.get()
 
-        # Process Key (ESC: end) #################################################
+        # Process Key (ESC: end)
         key = cv.waitKey(1)
-        if key == 27:  # ESC
+        if key == 27:
             break
         number, mode = select_mode(key, mode)
 
-        # Frame skip for performance
+        # Frame skip
         frame_skip_counter += 1
         if frame_skip_counter <= FRAME_SKIP:
             continue
         frame_skip_counter = 0
 
-        # Camera capture #####################################################
+        # Camera capture
         ret, image = cap.retrieve()
         if not ret or not cap.isOpened():
             if not camera_disconnected:
@@ -402,7 +420,7 @@ def main():
                 print("Webcam disconnected! Waiting 10 seconds for webcam reconnection...")
                 time.sleep(10)
                 cap.release()
-                cap = cv.VideoCapture(cap_device, cv.CAP_DSHOW)
+                cap = find_working_camera()
                 if cap.isOpened():
                     cap.set(cv.CAP_PROP_FRAME_WIDTH, cap_width)
                     cap.set(cv.CAP_PROP_FRAME_HEIGHT, cap_height)
@@ -412,7 +430,7 @@ def main():
                 else:
                     final_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     final_message = f"[{final_time}] Webcam disconnected! Failed to reconnect webcam."
-                    log_camera_issue(mqtt_client, args.mqtt_log_topic + "/webcam", final_message)
+                    log_system_issue(mqtt_client, args.mqtt_log_topic + "/webcam", final_message)
             break
 
         image = cv.flip(image, 1)  # Mirror display
@@ -424,18 +442,16 @@ def main():
         if args.use_grayscale:
             # Convert to grayscale for display only
             gray_image = cv.cvtColor(image, cv.COLOR_BGR2GRAY)
-            # Convert back to 3-channel for consistent drawing functions
             debug_image = cv.cvtColor(gray_image, cv.COLOR_GRAY2BGR)
         else:
             # Keep original color image for display
             debug_image = copy.deepcopy(image)
 
-        # Detection implementation - Optimized processing #############################################################
+        # Detection implementation
         process_image.flags.writeable = False
         results = hands.process(process_image)
         process_image.flags.writeable = True
 
-        #  ####################################################################
         if results.multi_hand_landmarks is not None:
             for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
                                                   results.multi_handedness):
@@ -521,10 +537,10 @@ def main():
         debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
 
-        # Screen reflection #############################################################
+        # Screen reflection
         cv.imshow('Hand Gesture Recognition', debug_image)
 
-    # Cleanup khi thoát
+    # Cleanup when exit
     send_shutdown_notification()
     cap.release()
     cv.destroyAllWindows()
