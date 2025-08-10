@@ -534,6 +534,8 @@ def main():
                     print(f"No hand detected - Published: {stop_command} to {args.mqtt_topic}")
                     last_stable_gesture["hand"] = stop_command
 
+            gesture_stability_buffer["hand"].clear()
+            
         debug_image = draw_point_history(debug_image, point_history)
         debug_image = draw_info(debug_image, fps, mode, number)
 
